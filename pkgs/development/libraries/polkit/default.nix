@@ -1,6 +1,6 @@
 { lib, stdenv, fetchurl, pkg-config, glib, expat, pam, perl, fetchpatch
 , intltool, spidermonkey_78, gobject-introspection, libxslt, docbook_xsl, dbus
-, docbook_xml_dtd_412, gtk-doc, coreutils
+, docbook_xml_dtd_412, gtk-doc, coreutils, meson, ninja
 , useSystemd ? (stdenv.isLinux && !stdenv.hostPlatform.isMusl), systemd, elogind
 # needed until gobject-introspection does cross-compile (https://github.com/NixOS/nixpkgs/pull/88222)
 , withIntrospection ? (stdenv.buildPlatform == stdenv.hostPlatform)
@@ -20,28 +20,14 @@ in
 
 stdenv.mkDerivation rec {
   pname = "polkit";
-  version = "0.118";
+  version = "0.119";
 
   src = fetchurl {
     url = "https://www.freedesktop.org/software/${pname}/releases/${pname}-${version}.tar.gz";
-    sha256 = "0swmg37jsxsxfsd2b3qm0l3zxr9ldvhpjw8lsgq3j8q7wy2fjm3d";
+    sha256 = "0p0zzmr0kh3mpmqya4q27y4h9b920zp5ya0i8909ahp9hvdrymy8";
   };
 
-  patches = [
-    # Don't use etc/dbus-1/system.d
-    # Upstream MR: https://gitlab.freedesktop.org/polkit/polkit/merge_requests/11
-    (fetchpatch {
-      url = "https://gitlab.freedesktop.org/polkit/polkit/commit/5dd4e22efd05d55833c4634b56e473812b5acbf2.patch";
-      sha256 = "17lv7xj5ksa27iv4zpm4zwd4iy8zbwjj4ximslfq3sasiz9kxhlp";
-    })
-    (fetchpatch {
-      # https://www.openwall.com/lists/oss-security/2021/06/03/1
-      # https://gitlab.freedesktop.org/polkit/polkit/-/merge_requests/79
-      name = "CVE-2021-3560.patch";
-      url = "https://gitlab.freedesktop.org/polkit/polkit/-/commit/a04d13affe0fa53ff618e07aa8f57f4c0e3b9b81.patch";
-      sha256 = "157ddsizgr290jsb8fpafrc37gc1qw5pdvl351vnn3pzhqs7n6f4";
-    })
-  ] ++ lib.optionals stdenv.hostPlatform.isMusl [
+  patches = lib.optionals stdenv.hostPlatform.isMusl [
     # Make netgroup support optional (musl does not have it)
     # Upstream MR: https://gitlab.freedesktop.org/polkit/polkit/merge_requests/10
     # We use the version of the patch that Alpine uses successfully.
@@ -59,7 +45,7 @@ stdenv.mkDerivation rec {
   outputs = [ "bin" "dev" "out" ]; # small man pages in $bin
 
   nativeBuildInputs =
-    [ glib gtk-doc pkg-config intltool perl ]
+    [ glib gtk-doc meson ninja pkg-config intltool perl ]
     ++ [ libxslt docbook_xsl docbook_xml_dtd_412 ]; # man pages
   buildInputs =
     [ expat pam spidermonkey_78 ]
@@ -88,24 +74,25 @@ stdenv.mkDerivation rec {
     sed '/libsystemd autoconfigured/s/.*/:/' -i configure
   '';
 
-  configureFlags = [
-    "--datadir=${system}/share"
-    "--sysconfdir=/etc"
-    "--with-systemdsystemunitdir=${placeholder "out"}/etc/systemd/system"
-    "--with-polkitd-user=polkituser" #TODO? <nixos> config.ids.uids.polkituser
-    "--with-os-type=NixOS" # not recognized but prevents impurities on non-NixOS
-    (if withIntrospection then "--enable-introspection" else "--disable-introspection")
-  ] ++ lib.optional (!doCheck) "--disable-test";
+  mesonFlags = [
+    "-Ddatadir=${system}/share"
+    "-Dsysconfdir=/etc"
+    "-Dsystemdsystemunitdir=${placeholder "out"}/etc/systemd/system"
+    "-Dpolkitd_user=polkituser" #TODO? <nixos> config.ids.uids.polkituser
+    "-Dos-type=NixOS" # not recognized but prevents impurities on non-NixOS
+    "-Dman=true"
+    (if withIntrospection then "-Dintrospection=true" else "-Dintrospection=false")
+  ] ++ lib.optional (doCheck) "-Dtests=true";
 
   makeFlags = [
     "INTROSPECTION_GIRDIR=${placeholder "out"}/share/gir-1.0"
     "INTROSPECTION_TYPELIBDIR=${placeholder "out"}/lib/girepository-1.0"
   ];
 
-  installFlags = [
-    "datadir=${placeholder "out"}/share"
-    "sysconfdir=${placeholder "out"}/etc"
-  ];
+  #installFlags = [
+    #"datadir=${placeholder "out"}/share"
+    #"sysconfdir=${placeholder "out"}/etc"
+  #];
 
   inherit doCheck;
   checkInputs = [ dbus ];
