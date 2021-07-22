@@ -102,4 +102,14 @@
     name = "mac_nvme_t2";
     patch = ./mac-nvme-t2.patch;
   };
+
+  # Fix CVE-2021-33909, disclosed 2021-07-20
+  disallow_extremely_large_seq_buffer_allocations = rec {
+    name = "disallow-extremely-large-seq-buffer-allocations";
+    patch = fetchpatch {
+      name = name + ".patch";
+      url = "https://github.com/torvalds/linux/commit/8cae8cd89f05f6de223d63e6d15e31c8ba9cf53b.patch";
+      sha256 = "12k94vmqa9j48qbfkqsldniqcqsx0gjy10maq62v92dxryd277m1";
+    };
+  };
 }

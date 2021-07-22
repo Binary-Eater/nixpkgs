@@ -1,3 +1,6 @@
+let
+  availablePatches = import ./patches.nix;
+in
 { buildPackages
 , callPackage
 , perl
@@ -45,6 +48,11 @@
   # symbolic name and `patch' is the actual patch.  The patch may
   # optionally be compressed with gzip or bzip2.
   kernelPatches ? []
+    # Fixes CVE-2021-33909, disclosed 2021-07-20
+    ++ lib.optional ((lib.versionAtLeast version "3.16" && lib.versionAtMost version "5.12.18") ||
+                     (lib.versionAtLeast version "5.13" && lib.versionAtMost version "5.13.3"))
+       availablePatches.disallow_extremely_large_seq_buffer_allocations
+
 , ignoreConfigErrors ? stdenv.hostPlatform.linux-kernel.name != "pc" ||
                        stdenv.hostPlatform != stdenv.buildPlatform
 , extraMeta ? {}

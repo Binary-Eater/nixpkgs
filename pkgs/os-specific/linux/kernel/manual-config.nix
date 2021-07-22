@@ -85,7 +85,6 @@ let
 
         isDisabled = attr: (!(config.isSet attr)) || (config.isNo attr);
       } // config_;
-
       isModular = config.isYes "MODULES";
 
       installsFirmware = (config.isEnabled "FW_LOADER") &&
